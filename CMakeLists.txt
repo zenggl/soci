@@ -22,6 +22,8 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # 设置编译后安装路径
 set(CMAKE_INSTALL_PREFIX ${SOCI_SOURCE_DIR}/../../build_evn/soci)
+# 设置ORACLE 编译环境路径
+set(ORACLE_HOME ${SOCI_SOURCE_DIR}/../../build_evn/oracle/instantclient_21_14)
 message("CMAKE_INSTALL_PREFIX: ${CMAKE_INSTALL_PREFIX}")
 
 
@@ -39,7 +41,7 @@ include(SociUtilities)
 
 option(SOCI_SHARED "Enable build of shared libraries" ON)
 option(SOCI_STATIC "Enable build of static libraries" ON)
-option(SOCI_TESTS "Enable build of collection of SOCI tests" ON)
+option(SOCI_TESTS "Enable build of collection of SOCI tests" OFF)
 option(SOCI_ASAN "Enable address sanitizer on GCC v4.8+/Clang v 3.1+" OFF)
 option(SOCI_LTO "Enable link time optimization" OFF)
 option(SOCI_VISIBILITY "Enable hiding private symbol using ELF visibility if supported by the platform" ON)
