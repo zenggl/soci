@@ -6,13 +6,15 @@
 //
 
 #define SOCI_SOURCE
-#include "soci/soci-platform.h"
 #include "soci/backend-loader.h"
-#include "soci/error.h"
+
 #include <cstdlib>
 #include <map>
 #include <string>
 #include <vector>
+
+#include "soci/error.h"
+#include "soci/soci-platform.h"
 #ifndef _MSC_VER
 #include <stdint.h>
 #endif
@@ -42,22 +44,22 @@ typedef HMODULE soci_handler_t;
 #define DLSYM(x, y) GetProcAddress(x, y)
 
 #ifdef SOCI_ABI_VERSION
-  #ifndef NDEBUG
-    #define LIBNAME(x) (SOCI_LIB_PREFIX + x + "_" SOCI_ABI_VERSION SOCI_DEBUG_POSTFIX SOCI_LIB_SUFFIX)
-  #else
-    #define LIBNAME(x) (SOCI_LIB_PREFIX + x + "_" SOCI_ABI_VERSION SOCI_LIB_SUFFIX)
-  #endif
+#ifndef NDEBUG
+#define LIBNAME(x) (SOCI_LIB_PREFIX + x + "_" SOCI_ABI_VERSION SOCI_DEBUG_POSTFIX SOCI_LIB_SUFFIX)
+#else
+#define LIBNAME(x) (SOCI_LIB_PREFIX + x + "_" SOCI_ABI_VERSION SOCI_LIB_SUFFIX)
+#endif
 #else
 #define LIBNAME(x) (SOCI_LIB_PREFIX + x + SOCI_LIB_SUFFIX)
-#endif // SOCI_ABI_VERSION
+#endif  // SOCI_ABI_VERSION
 
 #else
 
-#include <pthread.h>
 #include <dlfcn.h>
+#include <pthread.h>
 
 typedef pthread_mutex_t soci_mutex_t;
-typedef void * soci_handler_t;
+typedef void* soci_handler_t;
 
 #define LOCK(x) pthread_mutex_lock(x)
 #define UNLOCK(x) pthread_mutex_unlock(x)
@@ -77,18 +79,16 @@ typedef void * soci_handler_t;
 
 #else
 #define LIBNAME(x) (SOCI_LIB_PREFIX + x + SOCI_LIB_SUFFIX)
-#endif // SOCI_ABI_VERSION
+#endif  // SOCI_ABI_VERSION
 
-#endif // _WIN32
+#endif  // _WIN32
 
-
-namespace // unnamed
+namespace  // unnamed
 {
 
-struct info
-{
+struct info {
     soci_handler_t handler_;
-    backend_factory const * factory_;
+    backend_factory const* factory_;
 
     // The use count is the number of existing sessions using this backend (in
     // fact it's the count of connection_parameters objects, but as these
@@ -117,37 +117,31 @@ std::vector<std::string> search_paths_;
 
 soci_mutex_t mutex_;
 
-std::vector<std::string> get_default_paths()
-{
+std::vector<std::string> get_default_paths() {
     std::vector<std::string> paths;
 
     char const* const penv = std::getenv("SOCI_BACKENDS_PATH");
     std::string const env(penv ? penv : "");
-    if (env.empty())
-    {
+    if (env.empty()) {
         paths.push_back(".");
+        paths.push_back("./backends");
 #ifdef DEFAULT_BACKENDS_PATH
         paths.push_back(DEFAULT_BACKENDS_PATH);
-#endif // DEFAULT_BACKENDS_PATH
+#endif  // DEFAULT_BACKENDS_PATH
         return paths;
     }
 
     std::string::size_type searchFrom = 0;
-    while (searchFrom != env.size())
-    {
+    while (searchFrom != env.size()) {
         std::string::size_type const found = env.find(":", searchFrom);
-        if (found == searchFrom)
-        {
+        if (found == searchFrom) {
             ++searchFrom;
-        }
-        else if (std::string::npos != found)
-        {
+        } else if (std::string::npos != found) {
             std::string const path(env.substr(searchFrom, found - searchFrom));
             paths.push_back(path);
 
             searchFrom = found + 1;
-        }
-        else // found == npos
+        } else  // found == npos
         {
             std::string const path = env.substr(searchFrom);
             paths.push_back(path);
@@ -160,38 +154,33 @@ std::vector<std::string> get_default_paths()
 }
 
 // used to automatically initialize the global state
-struct static_state_mgr
-{
-    static_state_mgr()
-    {
+struct static_state_mgr {
+    static_state_mgr() {
         MUTEX_INIT(&mutex_);
 
         search_paths_ = get_default_paths();
     }
 
-    ~static_state_mgr()
-    {
+    ~static_state_mgr() {
         unload_all();
 
         MUTEX_DEST(&mutex_);
     }
 } static_state_mgr_;
 
-class scoped_lock
-{
+class scoped_lock {
 public:
-    scoped_lock(soci_mutex_t * m) : mptr(m) { LOCK(m); };
+    scoped_lock(soci_mutex_t* m) : mptr(m) { LOCK(m); };
     ~scoped_lock() { UNLOCK(mptr); };
+
 private:
-    soci_mutex_t * mptr;
+    soci_mutex_t* mptr;
 };
 
 // non-synchronized helpers for the other functions
-factory_map::iterator do_unload(factory_map::iterator i)
-{
+factory_map::iterator do_unload(factory_map::iterator i) {
     soci_handler_t h = i->second.handler_;
-    if (h != NULL)
-    {
+    if (h != NULL) {
         DLCLOSE(h);
     }
 
@@ -202,14 +191,11 @@ factory_map::iterator do_unload(factory_map::iterator i)
     return i;
 }
 
-void do_unload_or_throw_if_in_use(std::string const & name)
-{
+void do_unload_or_throw_if_in_use(std::string const& name) {
     factory_map::iterator i = factories_.find(name);
 
-    if (i != factories_.end())
-    {
-        if (i->second.use_count_)
-        {
+    if (i != factories_.end()) {
+        if (i->second.use_count_) {
             throw soci_error("Backend " + name + " is used and can't be unloaded");
         }
 
@@ -218,8 +204,7 @@ void do_unload_or_throw_if_in_use(std::string const & name)
 }
 
 // non-synchronized helper
-void do_register_backend(std::string const & name, std::string const & shared_object)
-{
+void do_register_backend(std::string const& name, std::string const& shared_object) {
     do_unload_or_throw_if_in_use(name);
 
     // The rules for backend search are as follows:
@@ -229,45 +214,36 @@ void do_register_backend(std::string const & name, std::string const & shared_ob
     //   - file named libsoci_NAME.so.SOVERSION is searched in the list of search paths
 
     soci_handler_t h = 0;
-    if (shared_object.empty() == false)
-    {
+    if (shared_object.empty() == false) {
         h = DLOPEN(shared_object.c_str());
-    }
-    else
-    {
+    } else {
         // try system paths
         h = DLOPEN(LIBNAME(name).c_str());
-        if (0 == h)
-        {
+        if (0 == h) {
             // try all search paths
-            for (std::size_t i = 0; i != search_paths_.size(); ++i)
-            {
+            for (std::size_t i = 0; i != search_paths_.size(); ++i) {
                 std::string const fullFileName(search_paths_[i] + "/" + LIBNAME(name));
                 h = DLOPEN(fullFileName.c_str());
-                if (0 != h)
-                {
+                if (0 != h) {
                     // already found
                     break;
                 }
-             }
-         }
+            }
+        }
     }
 
-    if (0 == h)
-    {
+    if (0 == h) {
         throw soci_error("Failed to find shared library for backend " + name);
     }
 
     std::string symbol = "factory_" + name;
 
-    typedef backend_factory const * bfc_ptr;
+    typedef backend_factory const* bfc_ptr;
     typedef bfc_ptr (*get_t)(void);
     get_t entry;
-    entry = reinterpret_cast<get_t>(
-            reinterpret_cast<uintptr_t>(DLSYM(h, symbol.c_str())));
+    entry = reinterpret_cast<get_t>(reinterpret_cast<uintptr_t>(DLSYM(h, symbol.c_str())));
 
-    if (0 == entry)
-    {
+    if (0 == entry) {
         DLCLOSE(h);
         throw soci_error("Failed to resolve dynamic symbol: " + symbol);
     }
@@ -281,23 +257,21 @@ void do_register_backend(std::string const & name, std::string const & shared_ob
     factories_[name] = new_entry;
 }
 
-} // unnamed namespace
+}  // unnamed namespace
 
-backend_factory const& dynamic_backends::get(std::string const& name)
-{
+backend_factory const& dynamic_backends::get(std::string const& name) {
     scoped_lock lock(&mutex_);
 
     factory_map::iterator i = factories_.find(name);
 
-    if (i == factories_.end())
-    {
-      // no backend found with this name, try to register it first
+    if (i == factories_.end()) {
+        // no backend found with this name, try to register it first
 
-      do_register_backend(name, std::string());
+        do_register_backend(name, std::string());
 
-      // second attempt, must succeed (the backend is already loaded)
+        // second attempt, must succeed (the backend is already loaded)
 
-      i = factories_.find(name);
+        i = factories_.find(name);
     }
 
     i->second.use_count_++;
@@ -305,14 +279,12 @@ backend_factory const& dynamic_backends::get(std::string const& name)
     return *(i->second.factory_);
 }
 
-void dynamic_backends::unget(std::string const& name)
-{
+void dynamic_backends::unget(std::string const& name) {
     scoped_lock lock(&mutex_);
 
     factory_map::iterator i = factories_.find(name);
 
-    if (i == factories_.end())
-    {
+    if (i == factories_.end()) {
         // We don't throw here as this is often called from destructors, and so
         // this would result in a call to std::terminate(), even if this is
         // totally unexpected -- but, unfortunately, we have no way to report
@@ -326,28 +298,20 @@ void dynamic_backends::unget(std::string const& name)
 
     // Check if this backend should be unloaded if unloading it had been
     // previously requested.
-    if (backend_info.use_count_ == 0 && backend_info.unload_requested_)
-    {
+    if (backend_info.use_count_ == 0 && backend_info.unload_requested_) {
         do_unload(i);
     }
 }
 
-SOCI_DECL std::vector<std::string>& dynamic_backends::search_paths()
-{
-    return search_paths_;
-}
+SOCI_DECL std::vector<std::string>& dynamic_backends::search_paths() { return search_paths_; }
 
-SOCI_DECL void dynamic_backends::register_backend(
-    std::string const& name, std::string const& shared_object)
-{
+SOCI_DECL void dynamic_backends::register_backend(std::string const& name, std::string const& shared_object) {
     scoped_lock lock(&mutex_);
 
     do_register_backend(name, shared_object);
 }
 
-SOCI_DECL void dynamic_backends::register_backend(
-    std::string const& name, backend_factory const& factory)
-{
+SOCI_DECL void dynamic_backends::register_backend(std::string const& name, backend_factory const& factory) {
     scoped_lock lock(&mutex_);
 
     do_unload_or_throw_if_in_use(name);
@@ -358,15 +322,13 @@ SOCI_DECL void dynamic_backends::register_backend(
     factories_[name] = new_entry;
 }
 
-SOCI_DECL std::vector<std::string> dynamic_backends::list_all()
-{
+SOCI_DECL std::vector<std::string> dynamic_backends::list_all() {
     scoped_lock lock(&mutex_);
 
     std::vector<std::string> ret;
     ret.reserve(factories_.size());
 
-    for (factory_map::iterator i = factories_.begin(); i != factories_.end(); ++i)
-    {
+    for (factory_map::iterator i = factories_.begin(); i != factories_.end(); ++i) {
         std::string const& name = i->first;
         ret.push_back(name);
     }
@@ -374,17 +336,14 @@ SOCI_DECL std::vector<std::string> dynamic_backends::list_all()
     return ret;
 }
 
-SOCI_DECL void dynamic_backends::unload(std::string const& name)
-{
+SOCI_DECL void dynamic_backends::unload(std::string const& name) {
     scoped_lock lock(&mutex_);
 
     factory_map::iterator i = factories_.find(name);
 
-    if (i != factories_.end())
-    {
+    if (i != factories_.end()) {
         info& backend_info = i->second;
-        if (backend_info.use_count_)
-        {
+        if (backend_info.use_count_) {
             // We can't unload the backend while it's in use, so do it later
             // when it's not used any longer.
             backend_info.unload_requested_ = true;
@@ -395,17 +354,14 @@ SOCI_DECL void dynamic_backends::unload(std::string const& name)
     }
 }
 
-SOCI_DECL void dynamic_backends::unload_all()
-{
+SOCI_DECL void dynamic_backends::unload_all() {
     scoped_lock lock(&mutex_);
 
-    for (factory_map::iterator i = factories_.begin(); i != factories_.end(); )
-    {
+    for (factory_map::iterator i = factories_.begin(); i != factories_.end();) {
         info& backend_info = i->second;
 
         // Same logic as in unload() above.
-        if (backend_info.use_count_)
-        {
+        if (backend_info.use_count_) {
             backend_info.unload_requested_ = true;
             ++i;
             continue;

@@ -12,55 +12,48 @@
 #include <soci/soci-platform.h>
 
 #ifdef SOCI_MYSQL_SOURCE
-# define SOCI_MYSQL_DECL SOCI_DECL_EXPORT
+#define SOCI_MYSQL_DECL SOCI_DECL_EXPORT
 #else
-# define SOCI_MYSQL_DECL SOCI_DECL_IMPORT
+#define SOCI_MYSQL_DECL SOCI_DECL_IMPORT
 #endif
 
-#include <soci/soci-backend.h>
 #include <private/soci-trivial-blob-backend.h>
+#include <soci/soci-backend.h>
 #ifdef _WIN32
-#include <winsock.h> // SOCKET
-#endif // _WIN32
+#include <winsock.h>  // SOCKET
+#endif                // _WIN32
 
 // Some version of mysql.h contain trailing comma in an enum declaration that
 // trigger -Wpedantic, so suppress it as there is nothing to be done about it
 // using the macros defined in our private soci-compiler.h header, that we can
 // only include when building SOCI itself.
 #ifdef SOCI_MYSQL_SOURCE
-    #include "soci-compiler.h"
+#include "soci-compiler.h"
 #endif
 
 #ifdef SOCI_GCC_WARNING_SUPPRESS
-    SOCI_GCC_WARNING_SUPPRESS(pedantic)
+SOCI_GCC_WARNING_SUPPRESS(pedantic)
 #endif
 
-#include <mysql.h> // MySQL Client
-#include <errmsg.h> // MySQL Error codes
+#include <errmsg.h>  // MySQL Error codes
+#include <mysql.h>   // MySQL Client
 
 #ifdef SOCI_GCC_WARNING_RESTORE
-    SOCI_GCC_WARNING_RESTORE(pedantic)
+SOCI_GCC_WARNING_RESTORE(pedantic)
 #endif
 
 #include <vector>
 
+namespace soci {
 
-namespace soci
-{
-
-class SOCI_MYSQL_DECL mysql_soci_error : public soci_error
-{
+class SOCI_MYSQL_DECL mysql_soci_error : public soci_error {
 public:
-    mysql_soci_error(std::string const & msg, int errNum)
-        : soci_error(msg), err_num_(errNum), cat_(unknown) {
-            if(errNum == CR_CONNECTION_ERROR ||
-               errNum == CR_CONN_HOST_ERROR ||
-               errNum == CR_SERVER_GONE_ERROR ||
-               errNum == CR_SERVER_LOST ||
-               errNum == 1927) { // Lost connection to backend server
-                cat_ = connection_error;
-            }
+    mysql_soci_error(std::string const &msg, int errNum) : soci_error(msg), err_num_(errNum), cat_(unknown) {
+        if (errNum == CR_CONNECTION_ERROR || errNum == CR_CONN_HOST_ERROR || errNum == CR_SERVER_GONE_ERROR ||
+            errNum == CR_SERVER_LOST || errNum == 1927) {  // Lost connection to backend server
+            cat_ = connection_error;
         }
+    }
 
     error_category get_error_category() const override { return cat_; }
 
@@ -69,17 +62,13 @@ public:
 };
 
 struct mysql_statement_backend;
-struct mysql_standard_into_type_backend : details::standard_into_type_backend
-{
-    mysql_standard_into_type_backend(mysql_statement_backend &st)
-        : statement_(st) {}
+struct mysql_standard_into_type_backend : details::standard_into_type_backend {
+    mysql_standard_into_type_backend(mysql_statement_backend &st) : statement_(st) {}
 
-    void define_by_pos(int &position,
-        void *data, details::exchange_type type) override;
+    void define_by_pos(int &position, void *data, details::exchange_type type) override;
 
     void pre_fetch() override;
-    void post_fetch(bool gotData, bool calledFromFetch,
-        indicator *ind) override;
+    void post_fetch(bool gotData, bool calledFromFetch, indicator *ind) override;
 
     void clean_up() override;
 
@@ -90,13 +79,10 @@ struct mysql_standard_into_type_backend : details::standard_into_type_backend
     int position_;
 };
 
-struct mysql_vector_into_type_backend : details::vector_into_type_backend
-{
-    mysql_vector_into_type_backend(mysql_statement_backend &st)
-        : statement_(st) {}
+struct mysql_vector_into_type_backend : details::vector_into_type_backend {
+    mysql_vector_into_type_backend(mysql_statement_backend &st) : statement_(st) {}
 
-    void define_by_pos(int &position,
-        void *data, details::exchange_type type) override;
+    void define_by_pos(int &position, void *data, details::exchange_type type) override;
 
     void pre_fetch() override;
     void post_fetch(bool gotData, indicator *ind) override;
@@ -113,15 +99,11 @@ struct mysql_vector_into_type_backend : details::vector_into_type_backend
     int position_;
 };
 
-struct mysql_standard_use_type_backend : details::standard_use_type_backend
-{
-    mysql_standard_use_type_backend(mysql_statement_backend &st)
-        : statement_(st), position_(0), buf_(NULL) {}
+struct mysql_standard_use_type_backend : details::standard_use_type_backend {
+    mysql_standard_use_type_backend(mysql_statement_backend &st) : statement_(st), position_(0), buf_(NULL) {}
 
-    void bind_by_pos(int &position,
-        void *data, details::exchange_type type, bool readOnly) override;
-    void bind_by_name(std::string const &name,
-        void *data, details::exchange_type type, bool readOnly) override;
+    void bind_by_pos(int &position, void *data, details::exchange_type type, bool readOnly) override;
+    void bind_by_name(std::string const &name, void *data, details::exchange_type type, bool readOnly) override;
 
     void pre_use(indicator const *ind) override;
     void post_use(bool gotData, indicator *ind) override;
@@ -137,15 +119,11 @@ struct mysql_standard_use_type_backend : details::standard_use_type_backend
     char *buf_;
 };
 
-struct mysql_vector_use_type_backend : details::vector_use_type_backend
-{
-    mysql_vector_use_type_backend(mysql_statement_backend &st)
-        : statement_(st), position_(0) {}
+struct mysql_vector_use_type_backend : details::vector_use_type_backend {
+    mysql_vector_use_type_backend(mysql_statement_backend &st) : statement_(st), position_(0) {}
 
-    void bind_by_pos(int &position,
-        void *data, details::exchange_type type) override;
-    void bind_by_name(std::string const &name,
-        void *data, details::exchange_type type) override;
+    void bind_by_pos(int &position, void *data, details::exchange_type type) override;
+    void bind_by_name(std::string const &name, void *data, details::exchange_type type) override;
 
     void pre_use(indicator const *ind) override;
 
@@ -163,14 +141,12 @@ struct mysql_vector_use_type_backend : details::vector_use_type_backend
 };
 
 struct mysql_session_backend;
-struct mysql_statement_backend : details::statement_backend
-{
+struct mysql_statement_backend : details::statement_backend {
     mysql_statement_backend(mysql_session_backend &session);
 
     void alloc() override;
     void clean_up() override;
-    void prepare(std::string const &query,
-        details::statement_type eType) override;
+    void prepare(std::string const &query, details::statement_type eType) override;
 
     exec_fetch_result execute(int number) override;
     exec_fetch_result fetch(int number) override;
@@ -182,15 +158,13 @@ struct mysql_statement_backend : details::statement_backend
     std::string rewrite_for_procedure_call(std::string const &query) override;
 
     int prepare_for_describe() override;
-    void describe_column(int colNum,
-        db_type &dbtype,
-        std::string &columnName) override;
+    void describe_column(int colNum, db_type &dbtype, std::string &columnName) override;
     data_type to_data_type(db_type dbt) const override;
 
-    mysql_standard_into_type_backend * make_into_type_backend() override;
-    mysql_standard_use_type_backend * make_use_type_backend() override;
-    mysql_vector_into_type_backend * make_vector_into_type_backend() override;
-    mysql_vector_use_type_backend * make_vector_use_type_backend() override;
+    mysql_standard_into_type_backend *make_into_type_backend() override;
+    mysql_standard_use_type_backend *make_use_type_backend() override;
+    mysql_vector_into_type_backend *make_vector_into_type_backend() override;
+    mysql_vector_use_type_backend *make_vector_use_type_backend() override;
 
     mysql_session_backend &session_;
 
@@ -201,16 +175,16 @@ struct mysql_statement_backend : details::statement_backend
     // we will have query chunks "SELECT id FROM ttt WHERE name = ",
     // "AND gender = " and names "foo", "bar".
     std::vector<std::string> queryChunks_;
-    std::vector<std::string> names_; // list of names for named binds
+    std::vector<std::string> names_;  // list of names for named binds
 
-    long long rowsAffectedBulk_; // number of rows affected by the last bulk operation
+    long long rowsAffectedBulk_;  // number of rows affected by the last bulk operation
 
-    int numberOfRows_;  // number of rows retrieved from the server
-    int currentRow_;    // "current" row number to consume in postFetch
-    int rowsToConsume_; // number of rows to be consumed in postFetch
+    int numberOfRows_;   // number of rows retrieved from the server
+    int currentRow_;     // "current" row number to consume in postFetch
+    int rowsToConsume_;  // number of rows to be consumed in postFetch
 
-    bool justDescribed_; // to optimize row description with immediately
-                         // following actual statement execution
+    bool justDescribed_;  // to optimize row description with immediately
+                          // following actual statement execution
 
     // Set to true if the last column passed to describe_column() was a
     // MEDIUMINT UNSIGNED one, see to_data_type().
@@ -235,15 +209,13 @@ struct mysql_statement_backend : details::statement_backend
     UseByNameBuffersMap useByNameBuffers_;
 };
 
-struct mysql_rowid_backend : details::rowid_backend
-{
+struct mysql_rowid_backend : details::rowid_backend {
     mysql_rowid_backend(mysql_session_backend &session);
 
     ~mysql_rowid_backend() override;
 };
 
-class mysql_blob_backend : public details::trivial_blob_backend
-{
+class mysql_blob_backend : public details::trivial_blob_backend {
 public:
     mysql_blob_backend(mysql_session_backend &session);
 
@@ -253,12 +225,11 @@ public:
     void write_hex_str(char *buf, std::size_t size) const;
     std::string as_hex_str() const;
 
-    void load_from_hex_str(const char* str, std::size_t length);
+    void load_from_hex_str(const char *str, std::size_t length);
 };
 
-struct mysql_session_backend : details::session_backend
-{
-    mysql_session_backend(connection_parameters const & parameters);
+struct mysql_session_backend : details::session_backend {
+    mysql_session_backend(connection_parameters const &parameters);
 
     ~mysql_session_backend() override;
 
@@ -268,7 +239,7 @@ struct mysql_session_backend : details::session_backend
     void commit() override;
     void rollback() override;
 
-    bool get_last_insert_id(session&, std::string const&, long long&) override;
+    bool get_last_insert_id(session &, std::string const &, long long &) override;
 
     // Note that MySQL supports both "SELECT 2+2" and "SELECT 2+2 FROM DUAL"
     // syntaxes, but there doesn't seem to be any reason to use the longer one.
@@ -278,37 +249,44 @@ struct mysql_session_backend : details::session_backend
 
     void clean_up();
 
-    mysql_statement_backend * make_statement_backend() override;
-    mysql_rowid_backend * make_rowid_backend() override;
-    mysql_blob_backend * make_blob_backend() override;
+    mysql_statement_backend *make_statement_backend() override;
+    mysql_rowid_backend *make_rowid_backend() override;
+    mysql_blob_backend *make_blob_backend() override;
 
-    std::string get_table_names_query() const override
-    {
+    std::string get_table_names_query() const override {
         return "SELECT table_name AS 'TABLE_NAME' FROM information_schema.tables WHERE table_schema = DATABASE()";
     }
+
+    /**
+     * 分页查询语句
+     *
+     * @param select_sql
+     * @param page_no       查询页码
+     * @param page_size     每页大小
+     * @param limit         返回 查询记录行数
+     * @param offset        返回 偏移量
+     */
+    std::string get_page_query_sql(const std::string &select_sql, int page_no, int page_size, int &limit,
+                                   int &offset) override;
 
     MYSQL *conn_;
 };
 
-
-struct mysql_backend_factory : backend_factory
-{
+struct mysql_backend_factory : backend_factory {
     mysql_backend_factory() {}
-    mysql_session_backend * make_session(
-        connection_parameters const & parameters) const override;
+    mysql_session_backend *make_session(connection_parameters const &parameters) const override;
 };
 
 extern SOCI_MYSQL_DECL mysql_backend_factory const mysql;
 
-extern "C"
-{
+extern "C" {
 
 // for dynamic backend loading
-SOCI_MYSQL_DECL backend_factory const * factory_mysql();
+SOCI_MYSQL_DECL backend_factory const *factory_mysql();
 SOCI_MYSQL_DECL void register_factory_mysql();
 
-} // extern "C"
+}  // extern "C"
 
-} // namespace soci
+}  // namespace soci
 
-#endif // SOCI_MYSQL_H_INCLUDED
+#endif  // SOCI_MYSQL_H_INCLUDED

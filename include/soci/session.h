@@ -195,8 +195,11 @@ public:
     details::rowid_backend *make_rowid_backend();
     details::blob_backend *make_blob_backend();
 
-    void set_connstr_hashcode(const std::string hashcode) { connStrHashcode_ = hashcode; }
-    std::string get_connstr_hashcode() const { return connStrHashcode_; }
+    /**
+     * 连接字符串的哈希值，用于快速判断是否需要重新连接
+     */
+    void set_connstr_hashcode(const size_t hashcode) { connStrHashcode_ = hashcode; }
+    size_t get_connstr_hashcode() const { return connStrHashcode_; }
 
 private:
     SOCI_NOT_COPYABLE(session)
@@ -221,7 +224,7 @@ private:
     connection_pool *pool_;
 
     // 连接字符串的哈希值，用于快速判断是否需要重新连接
-    std::string connStrHashcode_;
+    size_t connStrHashcode_;
 };
 
 }  // namespace soci

@@ -7,134 +7,119 @@
 
 #define SOCI_SOURCE
 #include "soci/session.h"
+
 #include "soci/connection-parameters.h"
 #include "soci/connection-pool.h"
-#include "soci/soci-backend.h"
 #include "soci/query_transformation.h"
+#include "soci/soci-backend.h"
 
 using namespace soci;
 using namespace soci::details;
 
-namespace // anonymous
+namespace  // anonymous
 {
 
-void ensureConnected(session_backend * backEnd)
-{
-    if (backEnd == NULL)
-    {
+void ensureConnected(session_backend* backEnd) {
+    if (backEnd == NULL) {
         throw soci_error("Session is not connected.");
     }
 }
 
 // Standard logger class used by default.
-class standard_logger_impl : public logger_impl
-{
+class standard_logger_impl : public logger_impl {
 public:
-    standard_logger_impl()
-    {
-        logStream_ = NULL;
-    }
+    standard_logger_impl() { logStream_ = NULL; }
 
-    virtual void start_query(std::string const & query)
-    {
-        if (logStream_ != NULL)
-        {
+    virtual void start_query(std::string const& query) {
+        if (logStream_ != NULL) {
             *logStream_ << query << '\n';
         }
 
         lastQuery_ = query;
     }
 
-    virtual void set_stream(std::ostream * s)
-    {
-        logStream_ = s;
-    }
+    virtual void set_stream(std::ostream* s) { logStream_ = s; }
 
-    virtual std::ostream * get_stream() const
-    {
-        return logStream_;
-    }
+    virtual std::ostream* get_stream() const { return logStream_; }
 
-    virtual std::string get_last_query() const
-    {
-        return lastQuery_;
-    }
+    virtual std::string get_last_query() const { return lastQuery_; }
 
 private:
-    virtual logger_impl* do_clone() const
-    {
-        return new standard_logger_impl;
-    }
+    virtual logger_impl* do_clone() const { return new standard_logger_impl; }
 
-    std::ostream * logStream_;
+    std::ostream* logStream_;
     std::string lastQuery_;
 };
 
-} // namespace anonymous
+}  // namespace
 
 session::session()
-    : once(this), prepare(this),
+    : once(this),
+      prepare(this),
       logger_(new standard_logger_impl),
-      uppercaseColumnNames_(false), backEnd_(NULL),
-      isFromPool_(false), pool_(NULL)
-{
-}
+      uppercaseColumnNames_(false),
+      backEnd_(NULL),
+      isFromPool_(false),
+      pool_(NULL) {}
 
-session::session(connection_parameters const & parameters)
-    : once(this), prepare(this),
+session::session(connection_parameters const& parameters)
+    : once(this),
+      prepare(this),
       logger_(new standard_logger_impl),
       lastConnectParameters_(parameters),
-      uppercaseColumnNames_(false), backEnd_(NULL),
-      isFromPool_(false), pool_(NULL)
-{
+      uppercaseColumnNames_(false),
+      backEnd_(NULL),
+      isFromPool_(false),
+      pool_(NULL) {
     open(lastConnectParameters_);
 }
 
-session::session(backend_factory const & factory,
-    std::string const & connectString)
-    : once(this), prepare(this),
-    logger_(new standard_logger_impl),
+session::session(backend_factory const& factory, std::string const& connectString)
+    : once(this),
+      prepare(this),
+      logger_(new standard_logger_impl),
       lastConnectParameters_(factory, connectString),
-      uppercaseColumnNames_(false), backEnd_(NULL),
-      isFromPool_(false), pool_(NULL)
-{
+      uppercaseColumnNames_(false),
+      backEnd_(NULL),
+      isFromPool_(false),
+      pool_(NULL) {
     open(lastConnectParameters_);
 }
 
-session::session(std::string const & backendName,
-    std::string const & connectString)
-    : once(this), prepare(this),
+session::session(std::string const& backendName, std::string const& connectString)
+    : once(this),
+      prepare(this),
       logger_(new standard_logger_impl),
       lastConnectParameters_(backendName, connectString),
-      uppercaseColumnNames_(false), backEnd_(NULL),
-      isFromPool_(false), pool_(NULL)
-{
+      uppercaseColumnNames_(false),
+      backEnd_(NULL),
+      isFromPool_(false),
+      pool_(NULL) {
     open(lastConnectParameters_);
 }
 
-session::session(std::string const & connectString)
-    : once(this), prepare(this),
+session::session(std::string const& connectString)
+    : once(this),
+      prepare(this),
       logger_(new standard_logger_impl),
       lastConnectParameters_(connectString),
-      uppercaseColumnNames_(false), backEnd_(NULL),
-      isFromPool_(false), pool_(NULL)
-{
+      uppercaseColumnNames_(false),
+      backEnd_(NULL),
+      isFromPool_(false),
+      pool_(NULL) {
     open(lastConnectParameters_);
 }
 
-session::session(connection_pool & pool)
-    : logger_(new standard_logger_impl),
-      isFromPool_(true), pool_(&pool)
-{
+session::session(connection_pool& pool) : logger_(new standard_logger_impl), isFromPool_(true), pool_(&pool) {
     poolPosition_ = pool.lease();
-    session & pooledSession = pool.at(poolPosition_);
+    session& pooledSession = pool.at(poolPosition_);
 
     once.set_session(&pooledSession);
     prepare.set_session(&pooledSession);
     backEnd_ = pooledSession.get_backend();
 }
 
-session::session(session && other)
+session::session(session&& other)
     : once(std::move(other.once)),
       prepare(std::move(other.prepare)),
       query_stream_(std::move(other.query_stream_)),
@@ -146,10 +131,8 @@ session::session(session && other)
       gotData_(std::move(other.gotData_)),
       isFromPool_(std::move(other.isFromPool_)),
       poolPosition_(std::move(other.poolPosition_)),
-      pool_(std::move(other.pool_))
-{
-    if (!isFromPool_)
-    {
+      pool_(std::move(other.pool_)) {
+    if (!isFromPool_) {
         // If 'other' session was from a pool, 'once' and 'prepare'
         // will have been already setup to point at the pooled session above.
         // Otherwise reset them to reference 'this'.
@@ -157,24 +140,18 @@ session::session(session && other)
         prepare.set_session(this);
     }
 
-    other.reset_after_move ();
+    other.reset_after_move();
 }
 
-session& session::operator=(session && other)
-{
-    if (this != &other)
-    {
-        if (isFromPool_)
-        {
+session& session::operator=(session&& other) {
+    if (this != &other) {
+        if (isFromPool_) {
             pool_->give_back(poolPosition_);
-        }
-        else if (backEnd_ != other.backEnd_)
-        {
+        } else if (backEnd_ != other.backEnd_) {
             delete backEnd_;
         }
 
-        if (other.isFromPool_)
-        {
+        if (other.isFromPool_) {
             // If 'other' session was from a pool, 'once' and 'prepare'
             // will have been already setup reference the pooled session above.
             // Otherwise leave them alone and let them continue referencing 'this'.
@@ -199,44 +176,33 @@ session& session::operator=(session && other)
     return *this;
 }
 
-void session::reset_after_move()
-{
+void session::reset_after_move() {
     isFromPool_ = false;
     pool_ = nullptr;
     backEnd_ = nullptr;
     pool_ = nullptr;
 }
 
-session::~session()
-{
-    if (isFromPool_)
-    {
+session::~session() {
+    if (isFromPool_) {
         pool_->give_back(poolPosition_);
-    }
-    else
-    {
+    } else {
         delete backEnd_;
     }
 }
 
-void session::open(connection_parameters const & parameters)
-{
-    if (isFromPool_)
-    {
-        session & pooledSession = pool_->at(poolPosition_);
+void session::open(connection_parameters const& parameters) {
+    if (isFromPool_) {
+        session& pooledSession = pool_->at(poolPosition_);
         pooledSession.open(parameters);
         backEnd_ = pooledSession.get_backend();
-    }
-    else
-    {
-        if (backEnd_ != NULL)
-        {
+    } else {
+        if (backEnd_ != NULL) {
             throw soci_error("Cannot open already connected session.");
         }
 
-        backend_factory const * const factory = parameters.get_factory();
-        if (factory == NULL)
-        {
+        backend_factory const* const factory = parameters.get_factory();
+        if (factory == NULL) {
             throw soci_error("Cannot connect without a valid backend.");
         }
 
@@ -245,55 +211,38 @@ void session::open(connection_parameters const & parameters)
     }
 }
 
-void session::open(backend_factory const & factory,
-    std::string const & connectString)
-{
+void session::open(backend_factory const& factory, std::string const& connectString) {
     open(connection_parameters(factory, connectString));
 }
 
-void session::open(std::string const & backendName,
-    std::string const & connectString)
-{
+void session::open(std::string const& backendName, std::string const& connectString) {
     open(connection_parameters(backendName, connectString));
 }
 
-void session::open(std::string const & connectString)
-{
-    open(connection_parameters(connectString));
-}
+void session::open(std::string const& connectString) { open(connection_parameters(connectString)); }
 
-void session::close()
-{
-    if (isFromPool_)
-    {
+void session::close() {
+    if (isFromPool_) {
         pool_->at(poolPosition_).close();
         backEnd_ = NULL;
-    }
-    else
-    {
+    } else {
         delete backEnd_;
         backEnd_ = NULL;
     }
 }
 
-void session::reconnect()
-{
-    if (isFromPool_)
-    {
-        session & pooledSession = pool_->at(poolPosition_);
+void session::reconnect() {
+    if (isFromPool_) {
+        session& pooledSession = pool_->at(poolPosition_);
         pooledSession.reconnect();
         backEnd_ = pooledSession.get_backend();
-    }
-    else
-    {
-        backend_factory const * const lastFactory = lastConnectParameters_.get_factory();
-        if (lastFactory == NULL)
-        {
+    } else {
+        backend_factory const* const lastFactory = lastConnectParameters_.get_factory();
+        if (lastFactory == NULL) {
             throw soci_error("Cannot reconnect without previous connection.");
         }
 
-        if (backEnd_ != NULL)
-        {
+        if (backEnd_ != NULL) {
             close();
         }
 
@@ -308,244 +257,177 @@ void session::reconnect()
     }
 }
 
-bool session::is_connected() const noexcept
-{
-    try
-    {
+bool session::is_connected() const noexcept {
+    try {
         return backEnd_ && backEnd_->is_connected();
-    }
-    catch (...)
-    {
+    } catch (...) {
         // We must not throw from here, so just handle any exception as an
         // indication that the database connection is not available any longer.
         return false;
     }
 }
 
-void session::begin()
-{
+void session::begin() {
     ensureConnected(backEnd_);
 
     backEnd_->begin();
 }
 
-void session::commit()
-{
+void session::commit() {
     ensureConnected(backEnd_);
 
     backEnd_->commit();
 }
 
-void session::rollback()
-{
+void session::rollback() {
     ensureConnected(backEnd_);
 
     backEnd_->rollback();
 }
 
-std::ostringstream & session::get_query_stream()
-{
-    if (isFromPool_)
-    {
+std::ostringstream& session::get_query_stream() {
+    if (isFromPool_) {
         return pool_->at(poolPosition_).get_query_stream();
-    }
-    else
-    {
+    } else {
         return query_stream_;
     }
 }
 
-std::string session::get_query() const
-{
-    if (isFromPool_)
-    {
+std::string session::get_query() const {
+    if (isFromPool_) {
         return pool_->at(poolPosition_).get_query();
-    }
-    else
-    {
+    } else {
         // preserve logical constness of get_query,
         // stream used as read-only here,
         session* pthis = const_cast<session*>(this);
 
         // sole place where any user-defined query transformation is applied
-        if (query_transformation_)
-        {
+        if (query_transformation_) {
             return (*query_transformation_)(pthis->get_query_stream().str());
         }
         return pthis->get_query_stream().str();
     }
 }
 
-
-void session::set_query_transformation_(std::unique_ptr<details::query_transformation_function>&& qtf)
-{
-    if (isFromPool_)
-    {
+void session::set_query_transformation_(std::unique_ptr<details::query_transformation_function>&& qtf) {
+    if (isFromPool_) {
         pool_->at(poolPosition_).set_query_transformation_(std::move(qtf));
-    }
-    else
-    {
-        query_transformation_= std::move(qtf);
+    } else {
+        query_transformation_ = std::move(qtf);
     }
 }
 
-void session::set_logger(logger const & logger)
-{
-    if (isFromPool_)
-    {
+void session::set_logger(logger const& logger) {
+    if (isFromPool_) {
         pool_->at(poolPosition_).set_logger(logger);
-    }
-    else
-    {
+    } else {
         logger_ = logger;
     }
 }
 
-logger const & session::get_logger() const
-{
-    if (isFromPool_)
-    {
+logger const& session::get_logger() const {
+    if (isFromPool_) {
         return pool_->at(poolPosition_).get_logger();
-    }
-    else
-    {
+    } else {
         return logger_;
     }
 }
 
-void session::set_log_stream(std::ostream * s)
-{
-    if (isFromPool_)
-    {
+void session::set_log_stream(std::ostream* s) {
+    if (isFromPool_) {
         pool_->at(poolPosition_).set_log_stream(s);
-    }
-    else
-    {
+    } else {
         logger_.set_stream(s);
     }
 }
 
-std::ostream * session::get_log_stream() const
-{
-    if (isFromPool_)
-    {
+std::ostream* session::get_log_stream() const {
+    if (isFromPool_) {
         return pool_->at(poolPosition_).get_log_stream();
-    }
-    else
-    {
+    } else {
         return logger_.get_stream();
     }
 }
 
-void session::log_query(std::string const & query)
-{
-    if (isFromPool_)
-    {
+void session::log_query(std::string const& query) {
+    if (isFromPool_) {
         pool_->at(poolPosition_).log_query(query);
-    }
-    else
-    {
+    } else {
         logger_.start_query(query);
     }
 }
 
-std::string session::get_last_query() const
-{
-    if (isFromPool_)
-    {
+std::string session::get_last_query() const {
+    if (isFromPool_) {
         return pool_->at(poolPosition_).get_last_query();
-    }
-    else
-    {
+    } else {
         return logger_.get_last_query();
     }
 }
 
-void session::set_got_data(bool gotData)
-{
-    if (isFromPool_)
-    {
+void session::set_got_data(bool gotData) {
+    if (isFromPool_) {
         pool_->at(poolPosition_).set_got_data(gotData);
-    }
-    else
-    {
+    } else {
         gotData_ = gotData;
     }
 }
 
-bool session::got_data() const
-{
-    if (isFromPool_)
-    {
+bool session::got_data() const {
+    if (isFromPool_) {
         return pool_->at(poolPosition_).got_data();
-    }
-    else
-    {
+    } else {
         return gotData_;
     }
 }
 
-void session::uppercase_column_names(bool forceToUpper)
-{
-    if (isFromPool_)
-    {
+void session::uppercase_column_names(bool forceToUpper) {
+    if (isFromPool_) {
         pool_->at(poolPosition_).uppercase_column_names(forceToUpper);
-    }
-    else
-    {
+    } else {
         uppercaseColumnNames_ = forceToUpper;
     }
 }
 
-bool session::get_uppercase_column_names() const
-{
-    if (isFromPool_)
-    {
+bool session::get_uppercase_column_names() const {
+    if (isFromPool_) {
         return pool_->at(poolPosition_).get_uppercase_column_names();
-    }
-    else
-    {
+    } else {
         return uppercaseColumnNames_;
     }
 }
 
-bool session::get_next_sequence_value(std::string const & sequence, long long & value)
-{
+bool session::get_next_sequence_value(std::string const& sequence, long long& value) {
     ensureConnected(backEnd_);
 
     return backEnd_->get_next_sequence_value(*this, sequence, value);
 }
 
-bool session::get_last_insert_id(std::string const & sequence, long long & value)
-{
+bool session::get_last_insert_id(std::string const& sequence, long long& value) {
     ensureConnected(backEnd_);
 
     return backEnd_->get_last_insert_id(*this, sequence, value);
 }
 
-details::once_temp_type session::get_table_names()
-{
+details::once_temp_type session::get_table_names() {
     ensureConnected(backEnd_);
 
     return once << backEnd_->get_table_names_query();
 }
 
-details::prepare_temp_type session::prepare_table_names()
-{
+details::prepare_temp_type session::prepare_table_names() {
     ensureConnected(backEnd_);
 
     return prepare << backEnd_->get_table_names_query();
 }
 
-details::prepare_temp_type session::prepare_column_descriptions(std::string & table_name)
-{
+details::prepare_temp_type session::prepare_column_descriptions(std::string& table_name) {
     ensureConnected(backEnd_);
 
     return prepare << backEnd_->get_column_descriptions_query(), use(table_name, "t");
 }
 
-ddl_type session::create_table(const std::string & tableName)
-{
+ddl_type session::create_table(const std::string& tableName) {
     ddl_type ddl(*this);
 
     ddl.create_table(tableName);
@@ -554,24 +436,20 @@ ddl_type session::create_table(const std::string & tableName)
     return ddl;
 }
 
-void session::drop_table(const std::string & tableName)
-{
+void session::drop_table(const std::string& tableName) {
     ensureConnected(backEnd_);
 
     once << backEnd_->drop_table(tableName);
 }
 
-void session::truncate_table(const std::string & tableName)
-{
+void session::truncate_table(const std::string& tableName) {
     ensureConnected(backEnd_);
 
     once << backEnd_->truncate_table(tableName);
 }
 
-ddl_type session::add_column(const std::string & tableName,
-    const std::string & columnName, db_type dt,
-    int precision, int scale)
-{
+ddl_type session::add_column(const std::string& tableName, const std::string& columnName, db_type dt, int precision,
+                             int scale) {
     ddl_type ddl(*this);
 
     ddl.add_column(tableName, columnName, dt, precision, scale);
@@ -579,10 +457,8 @@ ddl_type session::add_column(const std::string & tableName,
     return ddl;
 }
 
-ddl_type session::alter_column(const std::string & tableName,
-    const std::string & columnName, db_type dt,
-    int precision, int scale)
-{
+ddl_type session::alter_column(const std::string& tableName, const std::string& columnName, db_type dt, int precision,
+                               int scale) {
     ddl_type ddl(*this);
 
     ddl.alter_column(tableName, columnName, dt, precision, scale);
@@ -590,9 +466,7 @@ ddl_type session::alter_column(const std::string & tableName,
     return ddl;
 }
 
-ddl_type session::drop_column(const std::string & tableName,
-    const std::string & columnName)
-{
+ddl_type session::drop_column(const std::string& tableName, const std::string& columnName) {
     ddl_type ddl(*this);
 
     ddl.drop_column(tableName, columnName);
@@ -600,66 +474,56 @@ ddl_type session::drop_column(const std::string & tableName,
     return ddl;
 }
 
-std::string session::empty_blob()
-{
+std::string session::empty_blob() {
     ensureConnected(backEnd_);
 
     return backEnd_->empty_blob();
 }
 
-std::string session::nvl()
-{
+std::string session::nvl() {
     ensureConnected(backEnd_);
 
     return backEnd_->nvl();
 }
 
-std::string session::get_dummy_from_table() const
-{
+std::string session::get_dummy_from_table() const {
     ensureConnected(backEnd_);
 
     return backEnd_->get_dummy_from_table();
 }
 
-std::string session::get_dummy_from_clause() const
-{
+std::string session::get_dummy_from_clause() const {
     std::string clause = get_dummy_from_table();
-    if (!clause.empty())
-        clause.insert(0, " from ");
+    if (!clause.empty()) clause.insert(0, " from ");
 
     return clause;
 }
 
-void session::set_failover_callback(failover_callback & callback)
-{
+void session::set_failover_callback(failover_callback& callback) {
     ensureConnected(backEnd_);
 
     backEnd_->set_failover_callback(callback, *this);
 }
 
-std::string session::get_backend_name() const
-{
+std::string session::get_backend_name() const {
     ensureConnected(backEnd_);
 
     return backEnd_->get_backend_name();
 }
 
-statement_backend * session::make_statement_backend()
-{
+statement_backend* session::make_statement_backend() {
     ensureConnected(backEnd_);
 
     return backEnd_->make_statement_backend();
 }
 
-rowid_backend * session::make_rowid_backend()
-{
+rowid_backend* session::make_rowid_backend() {
     ensureConnected(backEnd_);
 
     return backEnd_->make_rowid_backend();
 }
 
-blob_backend * session::make_blob_backend()
-{
+blob_backend* session::make_blob_backend() {
     ensureConnected(backEnd_);
 
     return backEnd_->make_blob_backend();
