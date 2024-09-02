@@ -489,7 +489,7 @@ public:
      * 分页查询SQL
      */
     virtual std::string get_page_count_sql(const std::string& select_sql) {
-        return "SELECT COUNT(*) FROM ( " + select_sql + " ) ";
+        return "SELECT COUNT(*) FROM ( " + select_sql + " ) tmp ";
     }
     /**
      * 分页查询语句

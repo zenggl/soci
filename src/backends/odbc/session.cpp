@@ -419,7 +419,7 @@ std::string odbc_session_backend::get_page_query_sql(const std::string &select_s
         case prod_mysql:
             limit = page_size;
             offset = (page_no - 1) * page_size;
-            ss << select_sql << " limit :page_size offset :offset ";
+            ss << select_sql << " limit :limit offset :offset ";
             break;
 
         case prod_oracle:

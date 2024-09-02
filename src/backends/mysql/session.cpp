@@ -445,7 +445,7 @@ std::string mysql_session_backend::get_page_query_sql(const std::string &select_
                                                       int &limit, int &offset) {
     limit = page_size;
     offset = (page_no - 1) * page_size;
-    return select_sql + " limit :page_size offset :offset ";
+    return select_sql + " limit :limit offset :offset ";
 }
 
 mysql_statement_backend *mysql_session_backend::make_statement_backend() { return new mysql_statement_backend(*this); }
