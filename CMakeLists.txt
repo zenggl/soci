@@ -26,8 +26,8 @@ set(CMAKE_INSTALL_PREFIX ${SOCI_SOURCE_DIR}/../../build_evn/soci)
 set(ORACLE_HOME ${SOCI_SOURCE_DIR}/../../build_evn/oracle/instantclient_21_14)
 message("CMAKE_INSTALL_PREFIX: ${CMAKE_INSTALL_PREFIX}")
 
-
-
+# # 增加参数，其他库可以引用此静态库
+# add_compile_options(-fPIC)
 
 # Path to additional CMake modules
 set(CMAKE_MODULE_PATH ${SOCI_SOURCE_DIR}/cmake/modules ${CMAKE_MODULE_PATH})
